@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "哔哩哔哩动态快捷操作",
+  "version": "1.0",
+  "description": "提供哔哩哔哩动态页面的快捷点赞、收藏和图片操作功能",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "downloads",
+    "scripting"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.bilibili.com/opus/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "哔哩哔哩动态快捷操作设置"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js"],
+      "matches": ["https://www.bilibili.com/*"]
+    }
+  ]
+}
