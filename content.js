@@ -274,8 +274,14 @@ class BilibiliOpusContent {
   }
 
   cleanImageUrl(url) {
+    // 处理相对URL（以//开头），添加https:协议
+    let cleanedUrl = url;
+    if (cleanedUrl.startsWith('//')) {
+      cleanedUrl = 'https:' + cleanedUrl;
+    }
+    
     // 统一协议，将HTTP转换为HTTPS
-    let cleanedUrl = url.replace(/^http:/, 'https:');
+    cleanedUrl = cleanedUrl.replace(/^http:/, 'https:');
     
     // 移除尺寸参数，获取原始图片
     cleanedUrl = cleanedUrl.replace(/@[^\s]*/, '').replace(/\?.*$/, '');
