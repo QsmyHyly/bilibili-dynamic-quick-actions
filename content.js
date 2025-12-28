@@ -39,8 +39,8 @@ class BilibiliOpusContent {
   addQuickButton() {
     // 等待页面加载完成
     setTimeout(() => {
-      const sideToolbar = document.querySelector('.side-toolbar');
-      if (sideToolbar) {
+      const sideToolbarBox = document.querySelector('.side-toolbar__box');
+      if (sideToolbarBox) {
         // 创建快捷操作按钮
         const quickButton = document.createElement('div');
         quickButton.className = 'side-toolbar__action quick-action';
@@ -52,13 +52,13 @@ class BilibiliOpusContent {
         `;
         
         quickButton.style.cursor = 'pointer';
-        quickButton.style.marginTop = '10px';
         
-        quickButton.addEventListener('click', () => {
-          this.executeQuickActions();
+        quickButton.addEventListener('click', async () => {
+          // 获取最新设置并执行快捷操作
+          await this.executeQuickActionsWithCurrentSettings();
         });
 
-        sideToolbar.appendChild(quickButton);
+        sideToolbarBox.appendChild(quickButton);
       }
     }, 2000); // 延迟2秒确保页面完全加载
   }
@@ -90,12 +90,34 @@ class BilibiliOpusContent {
     }
   }
 
+  async executeQuickActionsWithCurrentSettings() {
+    // 从后台获取最新设置
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({action: 'getSettings'}, (response) => {
+        if (response && response.settings) {
+          // 使用最新设置执行快捷操作
+          this.executeQuickActions(response.settings);
+        } else {
+          // 如果无法获取设置，使用默认设置
+          console.log('无法获取最新设置，使用默认设置');
+          this.executeQuickActions();
+        }
+        resolve();
+      });
+    });
+  }
+
   async likeOpus() {
     return new Promise((resolve) => {
       const likeButton = document.querySelector('.side-toolbar__action.like');
       if (likeButton) {
-        likeButton.click();
-        console.log('点赞操作执行');
+        // 检查是否已经激活
+        if (!likeButton.classList.contains('is-active')) {
+          likeButton.click();
+          console.log('点赞操作执行');
+        } else {
+          console.log('已点赞，跳过操作');
+        }
         setTimeout(resolve, 500);
       } else {
         console.log('未找到点赞按钮');
@@ -108,8 +130,13 @@ class BilibiliOpusContent {
     return new Promise((resolve) => {
       const favoriteButton = document.querySelector('.side-toolbar__action.favorite');
       if (favoriteButton) {
-        favoriteButton.click();
-        console.log('收藏操作执行');
+        // 检查是否已经激活
+        if (!favoriteButton.classList.contains('is-active')) {
+          favoriteButton.click();
+          console.log('收藏操作执行');
+        } else {
+          console.log('已收藏，跳过操作');
+        }
         setTimeout(resolve, 500);
       } else {
         console.log('未找到收藏按钮');
@@ -127,7 +154,7 @@ class BilibiliOpusContent {
       if (action === 'download') {
         // 下载图片
         this.downloadImages(imageUrls);
-      } else if (action === 'open') {
+      } else if (action === 'open' || action === 'open-tab') {
         // 在新标签页打开图片
         this.openImagesInNewTabs(imageUrls);
       }
