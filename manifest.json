@@ -36,7 +36,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/*.svg"],
+      "resources": ["icons/*.svg", "executeQuickActions.js"],
       "matches": ["https://www.bilibili.com/*"]
     }
   ]

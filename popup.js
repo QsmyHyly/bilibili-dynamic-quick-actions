@@ -123,6 +123,7 @@ class SettingsManager {
       const executeSettings = {
         likeEnabled: this.settings.likeEnabled,
         favoriteEnabled: this.settings.favoriteEnabled,
+        imageEnabled: this.settings.imageEnabled,
         imageAction: this.settings.imageEnabled ? this.settings.imageAction : 'none'
       };
       
@@ -131,65 +132,47 @@ class SettingsManager {
         executeSettings.imageAction = 'open';
       }
 
+      chrome.runtime.sendMessage({
+        action: 'log',
+        message: `Popup开始执行快捷操作，设置: likeEnabled=${executeSettings.likeEnabled}, favoriteEnabled=${executeSettings.favoriteEnabled}, imageAction=${executeSettings.imageAction}`
+      });
+
+      // 检查 executeQuickActions 函数是否已存在
+      const checkResults = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => typeof executeQuickActions !== 'undefined'
+      });
+
+      // 如果函数不存在，才加载 executeQuickActions.js
+      if (!checkResults[0]?.result) {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['executeQuickActions.js']
+        });
+
+        chrome.runtime.sendMessage({
+          action: 'log',
+          message: `Popup已加载executeQuickActions.js到标签页${tab.id}`
+        });
+      } else {
+        chrome.runtime.sendMessage({
+          action: 'log',
+          message: `Popup检测到executeQuickActions已存在，跳过加载`
+        });
+      }
+
       // 使用 scripting.executeScript 动态执行操作
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: (settings) => {
-          // 点赞操作
-          const likeOpus = () => {
-            const likeButton = document.querySelector('.side-toolbar__action.like');
-            if (likeButton && !likeButton.classList.contains('is-active')) {
-              likeButton.click();
-              return { success: true, action: 'like' };
-            }
-            return { success: false, action: 'like', reason: '已点赞或未找到按钮' };
-          };
-
-          // 收藏操作
-          const favoriteOpus = () => {
-            const favoriteButton = document.querySelector('.side-toolbar__action.favorite');
-            if (favoriteButton && !favoriteButton.classList.contains('is-active')) {
-              favoriteButton.click();
-              return { success: true, action: 'favorite' };
-            }
-            return { success: false, action: 'favorite', reason: '已收藏或未找到按钮' };
-          };
-
-          // 提取图片URL
-          const extractImageUrls = () => {
-            const imageUrls = new Set();
-            const allImages = document.querySelectorAll('img');
-            
-            allImages.forEach(img => {
-              const src = img.src || img.getAttribute('data-src');
-              if (src && (src.includes('.jpg') || src.includes('.jpeg') || 
-                          src.includes('.png') || src.includes('.webp') || 
-                          src.includes('.gif')) && src.includes('new_dyn')) {
-                
-                let cleanedUrl = src;
-                if (cleanedUrl.startsWith('//')) {
-                  cleanedUrl = 'https:' + cleanedUrl;
-                }
-                cleanedUrl = cleanedUrl.replace(/^http:/, 'https:');
-                cleanedUrl = cleanedUrl.replace(/@[^\s]*/, '').replace(/\?.*$/, '');
-                
-                imageUrls.add(cleanedUrl);
-              }
-            });
-            
-            return Array.from(imageUrls).filter(url => url.includes('/bfs/new_dyn/') || url.includes('new_dyn'));
-          };
-
-          // 执行操作
-          const results = {
-            like: settings.likeEnabled ? likeOpus() : { skipped: true, action: 'like' },
-            favorite: settings.favoriteEnabled ? favoriteOpus() : { skipped: true, action: 'favorite' },
-            imageUrls: settings.imageAction !== 'none' ? extractImageUrls() : []
-          };
-
-          return results;
+          return executeQuickActions(settings);
         },
         args: [executeSettings]
+      });
+
+      chrome.runtime.sendMessage({
+        action: 'log',
+        message: `Popup执行executeQuickActions完成，结果: ${JSON.stringify(results[0]?.result)}`
       });
 
       const actionResults = results[0]?.result;
@@ -264,6 +247,7 @@ class SettingsManager {
           const executeSettings = {
             likeEnabled: this.settings.likeEnabled,
             favoriteEnabled: this.settings.favoriteEnabled,
+            imageEnabled: this.settings.imageEnabled,
             imageAction: this.settings.imageEnabled ? this.settings.imageAction : 'none'
           };
           
@@ -272,68 +256,45 @@ class SettingsManager {
             executeSettings.imageAction = 'open';
           }
 
-          // 使用 scripting.executeScript 动态执行操作
+          // 检查 executeQuickActions 函数是否已存在
+          const checkResults = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => typeof executeQuickActions !== 'undefined'
+          });
+
+          // 如果函数不存在，才加载 executeQuickActions.js
+          if (!checkResults[0]?.result) {
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ['executeQuickActions.js']
+            });
+
+            chrome.runtime.sendMessage({
+              action: 'log',
+              message: `已加载executeQuickActions.js到标签页${tab.id}`
+            });
+          } else {
+            chrome.runtime.sendMessage({
+              action: 'log',
+              message: `标签页${tab.id}检测到executeQuickActions已存在，跳过加载`
+            });
+          }
+
+          // 使用 scripting.executeScript 调用 executeQuickActions 函数
           const results = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: (settings) => {
-              // 点赞操作
-              const likeOpus = () => {
-                const likeButton = document.querySelector('.side-toolbar__action.like');
-                if (likeButton && !likeButton.classList.contains('is-active')) {
-                  likeButton.click();
-                  return { success: true, action: 'like' };
-                }
-                return { success: false, action: 'like', reason: '已点赞或未找到按钮' };
-              };
-
-              // 收藏操作
-              const favoriteOpus = () => {
-                const favoriteButton = document.querySelector('.side-toolbar__action.favorite');
-                if (favoriteButton && !favoriteButton.classList.contains('is-active')) {
-                  favoriteButton.click();
-                  return { success: true, action: 'favorite' };
-                }
-                return { success: false, action: 'favorite', reason: '已收藏或未找到按钮' };
-              };
-
-              // 提取图片URL
-              const extractImageUrls = () => {
-                const imageUrls = new Set();
-                const allImages = document.querySelectorAll('img');
-                
-                allImages.forEach(img => {
-                  const src = img.src || img.getAttribute('data-src');
-                  if (src && (src.includes('.jpg') || src.includes('.jpeg') || 
-                              src.includes('.png') || src.includes('.webp') || 
-                              src.includes('.gif')) && src.includes('new_dyn')) {
-                    
-                    let cleanedUrl = src;
-                    if (cleanedUrl.startsWith('//')) {
-                      cleanedUrl = 'https:' + cleanedUrl;
-                    }
-                    cleanedUrl = cleanedUrl.replace(/^http:/, 'https:');
-                    cleanedUrl = cleanedUrl.replace(/@[^\s]*/, '').replace(/\?.*$/, '');
-                    
-                    imageUrls.add(cleanedUrl);
-                  }
-                });
-                
-                return Array.from(imageUrls).filter(url => url.includes('/bfs/new_dyn/') || url.includes('new_dyn'));
-              };
-
-              // 执行操作
-              const results = {
-                like: settings.likeEnabled ? likeOpus() : { skipped: true, action: 'like' },
-                favorite: settings.favoriteEnabled ? favoriteOpus() : { skipped: true, action: 'favorite' },
-                imageUrls: settings.imageAction !== 'none' ? extractImageUrls() : []
-              };
-
-              return results;
+              return executeQuickActions(settings);
             },
             args: [executeSettings]
           });
 
           const actionResults = results[0]?.result;
+          
+          chrome.runtime.sendMessage({
+            action: 'log',
+            message: `标签页${tab.id}执行executeQuickActions完成，结果: ${JSON.stringify(actionResults)}`
+          });
           
           // 处理图片操作（如果需要）
           if (executeSettings.imageAction !== 'none' && actionResults?.imageUrls?.length > 0) {

@@ -8,17 +8,15 @@ class BilibiliOpusContent {
     this.addQuickButton();
   }
 
-
-
   addQuickButton() {
-    let buttonAdded = false;
+    this.buttonAdded = false;
     const delays = [300, 600, 2000];
 
     const tryAddButton = (delay) => {
-      if (buttonAdded) return;
+      if (this.buttonAdded) return;
 
       setTimeout(() => {
-        if (buttonAdded) return;
+        if (this.buttonAdded) return;
 
         const sideToolbarBox = document.querySelector('.side-toolbar__box');
         if (sideToolbarBox) {
@@ -44,7 +42,7 @@ class BilibiliOpusContent {
           });
 
           sideToolbarBox.appendChild(quickButton);
-          buttonAdded = true;
+          this.buttonAdded = true;
         }
       }, delay);
     };
@@ -56,6 +54,39 @@ class BilibiliOpusContent {
 
   async executeWithDynamicInjection() {
     try {
+      // 检查 executeQuickActions 函数是否已存在
+      const checkResult = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({
+          action: 'checkScript',
+          functionName: 'executeQuickActions'
+        }, (response) => {
+          resolve(response?.exists || false);
+        });
+      });
+
+      // 如果函数不存在，才加载 executeQuickActions.js
+      if (!checkResult && !this.isLoadingScript) {
+        this.isLoadingScript = true;
+        await new Promise((resolve) => {
+          chrome.runtime.sendMessage({
+            action: 'loadScript',
+            scriptFile: 'executeQuickActions.js'
+          }, () => {
+            resolve();
+          });
+        });
+        this.isLoadingScript = false;
+        chrome.runtime.sendMessage({
+          action: 'log',
+          message: 'Content已加载executeQuickActions.js'
+        });
+      }
+
+      // 等待 executeQuickActions 函数加载完成
+      while (typeof executeQuickActions === 'undefined') {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
       // 从后台获取最新设置
       const settings = await new Promise((resolve) => {
         chrome.runtime.sendMessage({action: 'getSettings'}, (response) => {
@@ -79,7 +110,12 @@ class BilibiliOpusContent {
       });
 
       // 直接在当前页面执行操作（content.js已经运行在目标页面中）
-      const actionResults = this.executeQuickActions(settings);
+      const actionResults = executeQuickActions(settings);
+      
+      chrome.runtime.sendMessage({
+        action: 'log',
+        message: `Content执行executeQuickActions完成，结果: ${JSON.stringify(actionResults)}`
+      });
       
       // 处理图片操作（如果需要）
       if (settings.imageEnabled && settings.imageAction !== 'none' && actionResults?.imageUrls?.length > 0) {
@@ -104,67 +140,12 @@ class BilibiliOpusContent {
       
     } catch (error) {
       console.error('执行快捷操作时出错:', error);
+      chrome.runtime.sendMessage({
+        action: 'log',
+        message: `Content执行快捷操作出错: ${error.message}`
+      });
     }
   }
-
-  // 执行快捷操作
-  executeQuickActions(settings) {
-    // 点赞操作
-    const likeOpus = () => {
-      const likeButton = document.querySelector('.side-toolbar__action.like');
-      if (likeButton && !likeButton.classList.contains('is-active')) {
-        likeButton.click();
-        return { success: true, action: 'like' };
-      }
-      return { success: false, action: 'like', reason: '已点赞或未找到按钮' };
-    };
-
-    // 收藏操作
-    const favoriteOpus = () => {
-      const favoriteButton = document.querySelector('.side-toolbar__action.favorite');
-      if (favoriteButton && !favoriteButton.classList.contains('is-active')) {
-        favoriteButton.click();
-        return { success: true, action: 'favorite' };
-      }
-      return { success: false, action: 'favorite', reason: '已收藏或未找到按钮' };
-    };
-
-    // 提取图片URL
-    const extractImageUrls = () => {
-      const imageUrls = new Set();
-      const allImages = document.querySelectorAll('img');
-      
-      allImages.forEach(img => {
-        const src = img.src || img.getAttribute('data-src');
-        if (src && (src.includes('.jpg') || src.includes('.jpeg') || 
-                    src.includes('.png') || src.includes('.webp') || 
-                    src.includes('.gif')) && src.includes('new_dyn')) {
-          
-          let cleanedUrl = src;
-          if (cleanedUrl.startsWith('//')) {
-            cleanedUrl = 'https:' + cleanedUrl;
-          }
-          cleanedUrl = cleanedUrl.replace(/^http:/, 'https:');
-          cleanedUrl = cleanedUrl.replace(/@[^\s]*/, '').replace(/\?.*$/, '');
-          
-          imageUrls.add(cleanedUrl);
-        }
-      });
-      
-      return Array.from(imageUrls).filter(url => url.includes('/bfs/new_dyn/') || url.includes('new_dyn'));
-    };
-
-    // 执行操作
-    const results = {
-      like: settings.likeEnabled ? likeOpus() : { skipped: true, action: 'like' },
-      favorite: settings.favoriteEnabled ? favoriteOpus() : { skipped: true, action: 'favorite' },
-      imageUrls: (settings.imageEnabled && settings.imageAction !== 'none') ? extractImageUrls() : []
-    };
-
-    return results;
-  }
-
-
 }
 
 // 页面加载完成后初始化

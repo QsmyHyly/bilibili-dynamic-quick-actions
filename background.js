@@ -56,8 +56,15 @@ class BilibiliOpusHelper {
           sendResponse({ success: true });
           return true;
         case "log":
-          console.log(`[Popup] ${request.message}`);
+          const source = sender.tab ? '[Content]' : '[Popup]';
+          console.log(`${source} ${request.message}`);
           sendResponse({ success: true });
+          return true;
+        case "loadScript":
+          this.loadScriptToTab(sender.tab.id, request.scriptFile).then(() => sendResponse({ success: true }));
+          return true;
+        case "checkScript":
+          this.checkScriptExists(sender.tab.id, request.functionName).then(exists => sendResponse({ exists }));
           return true;
       }
     });
@@ -147,6 +154,24 @@ class BilibiliOpusHelper {
       default:
         console.log("图片操作已禁用");
     }
+  }
+
+  // 加载脚本到标签页
+  async loadScriptToTab(tabId, scriptFile) {
+    await chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      files: [scriptFile]
+    });
+  }
+
+  // 检查脚本函数是否存在
+  async checkScriptExists(tabId, functionName) {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      func: (funcName) => typeof window[funcName] !== 'undefined',
+      args: [functionName]
+    });
+    return results[0]?.result || false;
   }
 }
 
