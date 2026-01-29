@@ -30,6 +30,7 @@ class SettingsManager {
   bindEvents() {
     const saveButton = document.getElementById('saveButton');
     const executeButton = document.getElementById('executeButton');
+    const executeAllButton = document.getElementById('executeAllButton');
     
     saveButton.addEventListener('click', () => {
       this.saveSettings();
@@ -37,6 +38,10 @@ class SettingsManager {
 
     executeButton.addEventListener('click', () => {
       this.executeQuickActions();
+    });
+
+    executeAllButton.addEventListener('click', () => {
+      this.executeOnAllTabs();
     });
 
     // 监听设置变化
@@ -139,6 +144,86 @@ class SettingsManager {
       }
       
     } catch (error) {
+      console.error('执行快捷操作时出错:', error);
+      this.showStatus(error.message || '执行失败，请重试', 'error');
+    } finally {
+      executeButton.disabled = false;
+      executeButton.textContent = '执行快捷操作';
+    }
+  }
+
+  async executeOnAllTabs() {
+    const executeButton = document.getElementById('executeButton');
+    
+    executeButton.disabled = true;
+    executeButton.textContent = '执行中...';
+    
+    try {
+      chrome.runtime.sendMessage({ action: 'log', message: '开始执行所有页面的快捷操作' });
+      
+      // 获取所有打开的标签页
+      let tabs = await chrome.tabs.query({});
+      chrome.runtime.sendMessage({ action: 'log', message: `获取到 ${tabs.length} 个标签页` });
+      
+      // 检查每个标签页的URL
+      for (const tab of tabs) {
+        chrome.runtime.sendMessage({ action: 'log', message: `检查标签页 ${tab.id}: ${tab.url ? `\`${tab.url}\`` : 'undefined'}` });
+      }
+      
+      // 检查是否有动态页面
+      let opusTabs = tabs.filter(tab => tab.url && tab.url.includes('bilibili.com/opus'));
+      
+      if (opusTabs.length === 0) {
+        chrome.runtime.sendMessage({ action: 'log', message: '未检测到任何动态页面' });
+        this.showStatus('未检测到动态页面', 'error');
+        return;
+      }
+      
+      chrome.runtime.sendMessage({ action: 'log', message: `检测到 ${opusTabs.length} 个动态页面` });
+      
+      let successCount = 0;
+      let errorCount = 0;
+      
+      for (const tab of opusTabs) {
+        chrome.runtime.sendMessage({ action: 'log', message: `发现动态页面: ${tab.url}` });
+        
+        try {
+          // 准备执行设置
+          const executeSettings = {
+            likeEnabled: this.settings.likeEnabled,
+            favoriteEnabled: this.settings.favoriteEnabled,
+            imageAction: this.settings.imageEnabled ? this.settings.imageAction : 'none'
+          };
+          
+          // 统一图片操作类型
+          if (executeSettings.imageAction === 'open-tab') {
+            executeSettings.imageAction = 'open';
+          }
+
+          // 发送消息给内容脚本执行快捷操作
+          const response = await chrome.tabs.sendMessage(tab.id, {
+            action: 'executeQuickActions',
+            settings: executeSettings
+          });
+
+          if (response && response.success) {
+            successCount++;
+            chrome.runtime.sendMessage({ action: 'log', message: `标签页 ${tab.id} 执行成功` });
+          } else {
+            errorCount++;
+            chrome.runtime.sendMessage({ action: 'log', message: `标签页 ${tab.id} 执行失败: 响应失败` });
+          }
+        } catch (error) {
+          errorCount++;
+          chrome.runtime.sendMessage({ action: 'log', message: `标签页 ${tab.id} 执行失败: ${error.message}` });
+        }
+      }
+      
+      chrome.runtime.sendMessage({ action: 'log', message: `执行完成: 共 ${opusTabs.length} 个动态页面, 成功 ${successCount} 个, 失败 ${errorCount} 个` });
+      this.showStatus(`已完成所有动态页面的快捷操作：成功 ${successCount} 个，失败 ${errorCount} 个`, 'success');
+      
+    } catch (error) {
+      chrome.runtime.sendMessage({ action: 'log', message: `执行出错: ${error.message}` });
       console.error('执行快捷操作时出错:', error);
       this.showStatus(error.message || '执行失败，请重试', 'error');
     } finally {
