@@ -131,16 +131,88 @@ class SettingsManager {
         executeSettings.imageAction = 'open';
       }
 
-      // 发送消息给内容脚本执行快捷操作
-      const response = await chrome.tabs.sendMessage(tab.id, {
-        action: 'executeQuickActions',
-        settings: executeSettings
+      // 使用 scripting.executeScript 动态执行操作
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (settings) => {
+          // 点赞操作
+          const likeOpus = () => {
+            const likeButton = document.querySelector('.side-toolbar__action.like');
+            if (likeButton && !likeButton.classList.contains('is-active')) {
+              likeButton.click();
+              return { success: true, action: 'like' };
+            }
+            return { success: false, action: 'like', reason: '已点赞或未找到按钮' };
+          };
+
+          // 收藏操作
+          const favoriteOpus = () => {
+            const favoriteButton = document.querySelector('.side-toolbar__action.favorite');
+            if (favoriteButton && !favoriteButton.classList.contains('is-active')) {
+              favoriteButton.click();
+              return { success: true, action: 'favorite' };
+            }
+            return { success: false, action: 'favorite', reason: '已收藏或未找到按钮' };
+          };
+
+          // 提取图片URL
+          const extractImageUrls = () => {
+            const imageUrls = new Set();
+            const allImages = document.querySelectorAll('img');
+            
+            allImages.forEach(img => {
+              const src = img.src || img.getAttribute('data-src');
+              if (src && (src.includes('.jpg') || src.includes('.jpeg') || 
+                          src.includes('.png') || src.includes('.webp') || 
+                          src.includes('.gif')) && src.includes('new_dyn')) {
+                
+                let cleanedUrl = src;
+                if (cleanedUrl.startsWith('//')) {
+                  cleanedUrl = 'https:' + cleanedUrl;
+                }
+                cleanedUrl = cleanedUrl.replace(/^http:/, 'https:');
+                cleanedUrl = cleanedUrl.replace(/@[^\s]*/, '').replace(/\?.*$/, '');
+                
+                imageUrls.add(cleanedUrl);
+              }
+            });
+            
+            return Array.from(imageUrls).filter(url => url.includes('/bfs/new_dyn/') || url.includes('new_dyn'));
+          };
+
+          // 执行操作
+          const results = {
+            like: settings.likeEnabled ? likeOpus() : { skipped: true, action: 'like' },
+            favorite: settings.favoriteEnabled ? favoriteOpus() : { skipped: true, action: 'favorite' },
+            imageUrls: settings.imageAction !== 'none' ? extractImageUrls() : []
+          };
+
+          return results;
+        },
+        args: [executeSettings]
       });
 
-      if (response && response.success) {
-        this.showStatus('快捷操作执行成功', 'success');
+      const actionResults = results[0]?.result;
+      
+      // 处理图片操作（如果需要）
+      if (executeSettings.imageAction !== 'none' && actionResults?.imageUrls?.length > 0) {
+        chrome.runtime.sendMessage({
+          action: 'handleImages',
+          imageUrls: actionResults.imageUrls,
+          imageAction: executeSettings.imageAction
+        });
+      }
+
+      // 统计成功操作
+      const successActions = [];
+      if (actionResults?.like?.success) successActions.push('点赞');
+      if (actionResults?.favorite?.success) successActions.push('收藏');
+      if (actionResults?.imageUrls?.length > 0) successActions.push('图片处理');
+
+      if (successActions.length > 0) {
+        this.showStatus(`快捷操作执行成功：${successActions.join('、')}`, 'success');
       } else {
-        throw new Error('执行失败，请刷新页面重试');
+        this.showStatus('未执行任何操作或操作失败', 'warning');
       }
       
     } catch (error) {
@@ -200,18 +272,90 @@ class SettingsManager {
             executeSettings.imageAction = 'open';
           }
 
-          // 发送消息给内容脚本执行快捷操作
-          const response = await chrome.tabs.sendMessage(tab.id, {
-            action: 'executeQuickActions',
-            settings: executeSettings
+          // 使用 scripting.executeScript 动态执行操作
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: (settings) => {
+              // 点赞操作
+              const likeOpus = () => {
+                const likeButton = document.querySelector('.side-toolbar__action.like');
+                if (likeButton && !likeButton.classList.contains('is-active')) {
+                  likeButton.click();
+                  return { success: true, action: 'like' };
+                }
+                return { success: false, action: 'like', reason: '已点赞或未找到按钮' };
+              };
+
+              // 收藏操作
+              const favoriteOpus = () => {
+                const favoriteButton = document.querySelector('.side-toolbar__action.favorite');
+                if (favoriteButton && !favoriteButton.classList.contains('is-active')) {
+                  favoriteButton.click();
+                  return { success: true, action: 'favorite' };
+                }
+                return { success: false, action: 'favorite', reason: '已收藏或未找到按钮' };
+              };
+
+              // 提取图片URL
+              const extractImageUrls = () => {
+                const imageUrls = new Set();
+                const allImages = document.querySelectorAll('img');
+                
+                allImages.forEach(img => {
+                  const src = img.src || img.getAttribute('data-src');
+                  if (src && (src.includes('.jpg') || src.includes('.jpeg') || 
+                              src.includes('.png') || src.includes('.webp') || 
+                              src.includes('.gif')) && src.includes('new_dyn')) {
+                    
+                    let cleanedUrl = src;
+                    if (cleanedUrl.startsWith('//')) {
+                      cleanedUrl = 'https:' + cleanedUrl;
+                    }
+                    cleanedUrl = cleanedUrl.replace(/^http:/, 'https:');
+                    cleanedUrl = cleanedUrl.replace(/@[^\s]*/, '').replace(/\?.*$/, '');
+                    
+                    imageUrls.add(cleanedUrl);
+                  }
+                });
+                
+                return Array.from(imageUrls).filter(url => url.includes('/bfs/new_dyn/') || url.includes('new_dyn'));
+              };
+
+              // 执行操作
+              const results = {
+                like: settings.likeEnabled ? likeOpus() : { skipped: true, action: 'like' },
+                favorite: settings.favoriteEnabled ? favoriteOpus() : { skipped: true, action: 'favorite' },
+                imageUrls: settings.imageAction !== 'none' ? extractImageUrls() : []
+              };
+
+              return results;
+            },
+            args: [executeSettings]
           });
 
-          if (response && response.success) {
+          const actionResults = results[0]?.result;
+          
+          // 处理图片操作（如果需要）
+          if (executeSettings.imageAction !== 'none' && actionResults?.imageUrls?.length > 0) {
+            chrome.runtime.sendMessage({
+              action: 'handleImages',
+              imageUrls: actionResults.imageUrls,
+              imageAction: executeSettings.imageAction
+            });
+          }
+
+          // 统计成功操作
+          let hasSuccess = false;
+          if (actionResults?.like?.success) hasSuccess = true;
+          if (actionResults?.favorite?.success) hasSuccess = true;
+          if (actionResults?.imageUrls?.length > 0) hasSuccess = true;
+
+          if (hasSuccess) {
             successCount++;
             chrome.runtime.sendMessage({ action: 'log', message: `标签页 ${tab.id} 执行成功` });
           } else {
             errorCount++;
-            chrome.runtime.sendMessage({ action: 'log', message: `标签页 ${tab.id} 执行失败: 响应失败` });
+            chrome.runtime.sendMessage({ action: 'log', message: `标签页 ${tab.id} 执行失败: 无成功操作` });
           }
         } catch (error) {
           errorCount++;

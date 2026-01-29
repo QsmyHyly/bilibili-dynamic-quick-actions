@@ -11,6 +11,10 @@
     "contextMenus",
     "tabs"
   ],
+  "host_permissions": [
+    "https://www.bilibili.com/*",
+    "https://t.bilibili.com/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -32,7 +36,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["inject.js"],
+      "resources": ["icons/*.svg"],
       "matches": ["https://www.bilibili.com/*"]
     }
   ]

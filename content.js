@@ -1,320 +1,170 @@
 class BilibiliOpusContent {
   constructor() {
-    this.settings = {
-      likeEnabled: true,
-      favoriteEnabled: true,
-      imageAction: 'download'
-    };
     this.init();
   }
 
   async init() {
-    // 监听来自后台的消息
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.action === 'executeQuickActions') {
-        this.executeQuickActions(request.settings);
-        sendResponse({success: true});
-      }
-      return true;
-    });
-
-    // 加载设置
-    await this.loadSettings();
-    
     // 添加快捷按钮
     this.addQuickButton();
   }
 
-  async loadSettings() {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['settings'], (result) => {
-        if (result.settings) {
-          this.settings = {...this.settings, ...result.settings};
-        }
-        resolve();
-      });
-    });
-  }
+
 
   addQuickButton() {
-    // 等待页面加载完成
-    setTimeout(() => {
-      const sideToolbarBox = document.querySelector('.side-toolbar__box');
-      if (sideToolbarBox) {
-        // 创建快捷操作按钮
-        const quickButton = document.createElement('div');
-        quickButton.className = 'side-toolbar__action quick-action';
-        quickButton.innerHTML = `
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"/>
-          </svg>
-          <div class="side-toolbar__action__text">快捷操作</div>
-        `;
-        
-        quickButton.style.cursor = 'pointer';
-        
-        quickButton.addEventListener('click', async () => {
-          // 获取最新设置并执行快捷操作
-          await this.executeQuickActionsWithCurrentSettings();
-        });
+    let buttonAdded = false;
+    const delays = [300, 600, 2000];
 
-        sideToolbarBox.appendChild(quickButton);
-      }
-    }, 2000); // 延迟2秒确保页面完全加载
+    const tryAddButton = (delay) => {
+      if (buttonAdded) return;
+
+      setTimeout(() => {
+        if (buttonAdded) return;
+
+        const sideToolbarBox = document.querySelector('.side-toolbar__box');
+        if (sideToolbarBox) {
+          // 创建快捷操作按钮
+          const quickButton = document.createElement('div');
+          quickButton.className = 'side-toolbar__action quick-action';
+          // 使用本地SVG文件
+          const svgUrl = chrome.runtime.getURL('icons/快捷操作.svg');
+          quickButton.innerHTML = `
+            <img src="${svgUrl}" width="24" height="24" alt="快捷操作">
+            <div class="side-toolbar__action__text">快捷操作</div>
+          `;
+          
+          quickButton.style.cursor = 'pointer';
+          quickButton.style.whiteSpace = 'nowrap';
+          quickButton.style.display = 'flex';
+          quickButton.style.flexDirection = 'column';
+          quickButton.style.alignItems = 'center';
+          
+          quickButton.addEventListener('click', async () => {
+            // 使用动态注入执行快捷操作
+            await this.executeWithDynamicInjection();
+          });
+
+          sideToolbarBox.appendChild(quickButton);
+          buttonAdded = true;
+        }
+      }, delay);
+    };
+
+    delays.forEach(delay => tryAddButton(delay));
   }
 
-  async executeQuickActions(customSettings = null) {
-    const settings = customSettings || this.settings;
-    
-    console.log('开始执行快捷操作，设置:', settings);
-    
+
+
+  async executeWithDynamicInjection() {
     try {
-      // 执行点赞
-      if (settings.likeEnabled) {
-        await this.likeOpus();
+      // 从后台获取最新设置
+      const settings = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({action: 'getSettings'}, (response) => {
+          if (response && response.settings) {
+            resolve(response.settings);
+          } else {
+            // 使用默认设置
+            resolve({
+              likeEnabled: true,
+              favoriteEnabled: true,
+              imageAction: 'download'
+            });
+          }
+        });
+      });
+
+      // 记录获取到的设置
+      chrome.runtime.sendMessage({
+        action: 'log',
+        message: `Content获取到的设置: likeEnabled=${settings.likeEnabled}, favoriteEnabled=${settings.favoriteEnabled}, imageEnabled=${settings.imageEnabled}, imageAction=${settings.imageAction}`
+      });
+
+      // 直接在当前页面执行操作（content.js已经运行在目标页面中）
+      const actionResults = this.executeQuickActions(settings);
+      
+      // 处理图片操作（如果需要）
+      if (settings.imageEnabled && settings.imageAction !== 'none' && actionResults?.imageUrls?.length > 0) {
+        chrome.runtime.sendMessage({
+          action: 'handleImages',
+          imageUrls: actionResults.imageUrls,
+          imageAction: settings.imageAction
+        });
       }
 
-      // 执行收藏
-      if (settings.favoriteEnabled) {
-        await this.favoriteOpus();
-      }
+      // 显示操作结果
+      const successActions = [];
+      if (actionResults?.like?.success) successActions.push('点赞');
+      if (actionResults?.favorite?.success) successActions.push('收藏');
+      if (actionResults?.imageUrls?.length > 0) successActions.push('图片处理');
 
-      // 处理图片
-      if (settings.imageAction && settings.imageAction !== 'none') {
-        await this.handleImages(settings.imageAction);
+      if (successActions.length > 0) {
+        console.log(`快捷操作执行成功：${successActions.join('、')}`);
+      } else {
+        console.log('未执行任何操作或操作失败');
       }
-
-      console.log('快捷操作执行完成');
+      
     } catch (error) {
       console.error('执行快捷操作时出错:', error);
     }
   }
 
-  async executeQuickActionsWithCurrentSettings() {
-    // 从后台获取最新设置
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage({action: 'getSettings'}, (response) => {
-        if (response && response.settings) {
-          // 使用最新设置执行快捷操作
-          this.executeQuickActions(response.settings);
-        } else {
-          // 如果无法获取设置，使用默认设置
-          console.log('无法获取最新设置，使用默认设置');
-          this.executeQuickActions();
-        }
-        resolve();
-      });
-    });
-  }
-
-  async likeOpus() {
-    return new Promise((resolve) => {
+  // 执行快捷操作
+  executeQuickActions(settings) {
+    // 点赞操作
+    const likeOpus = () => {
       const likeButton = document.querySelector('.side-toolbar__action.like');
-      if (likeButton) {
-        // 检查是否已经激活
-        if (!likeButton.classList.contains('is-active')) {
-          likeButton.click();
-          console.log('点赞操作执行');
-        } else {
-          console.log('已点赞，跳过操作');
-        }
-        setTimeout(resolve, 500);
-      } else {
-        console.log('未找到点赞按钮');
-        resolve();
+      if (likeButton && !likeButton.classList.contains('is-active')) {
+        likeButton.click();
+        return { success: true, action: 'like' };
       }
-    });
-  }
+      return { success: false, action: 'like', reason: '已点赞或未找到按钮' };
+    };
 
-  async favoriteOpus() {
-    return new Promise((resolve) => {
+    // 收藏操作
+    const favoriteOpus = () => {
       const favoriteButton = document.querySelector('.side-toolbar__action.favorite');
-      if (favoriteButton) {
-        // 检查是否已经激活
-        if (!favoriteButton.classList.contains('is-active')) {
-          favoriteButton.click();
-          console.log('收藏操作执行');
-        } else {
-          console.log('已收藏，跳过操作');
-        }
-        setTimeout(resolve, 500);
-      } else {
-        console.log('未找到收藏按钮');
-        resolve();
+      if (favoriteButton && !favoriteButton.classList.contains('is-active')) {
+        favoriteButton.click();
+        return { success: true, action: 'favorite' };
       }
-    });
-  }
+      return { success: false, action: 'favorite', reason: '已收藏或未找到按钮' };
+    };
 
-  async handleImages(action) {
-    const imageUrls = this.extractImageUrls();
-    
-    if (imageUrls.length > 0) {
-      console.log(`找到 ${imageUrls.length} 张图片，执行操作: ${action}`);
+    // 提取图片URL
+    const extractImageUrls = () => {
+      const imageUrls = new Set();
+      const allImages = document.querySelectorAll('img');
       
-      if (action === 'download') {
-        // 下载图片
-        this.downloadImages(imageUrls);
-      } else if (action === 'open' || action === 'open-tab') {
-        // 在新标签页打开图片
-        this.openImagesInNewTabs(imageUrls);
-      }
-    } else {
-      console.log('未找到图片');
-    }
-  }
-
-  async downloadImages(imageUrls) {
-    for (let i = 0; i < imageUrls.length; i++) {
-      const url = imageUrls[i];
-      try {
-        // 从URL中提取原始文件名
-        const fileName = this.extractFileName(url);
-        
-        // 使用fetch获取图片数据，然后创建Blob URL
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        
-        // 创建下载链接
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = fileName;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // 释放Blob URL
-        URL.revokeObjectURL(blobUrl);
-        
-        console.log(`下载图片 ${i + 1}/${imageUrls.length}: ${fileName}`);
-        
-        // 添加延迟避免浏览器限制
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-      } catch (error) {
-        console.error(`下载图片失败 (${i + 1}/${imageUrls.length}):`, error);
-        
-        // 如果fetch失败，尝试使用原始方法
-        try {
-          const fileName = this.extractFileName(url);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = fileName;
-          link.style.display = 'none';
-          link.target = '_blank'; // 添加target属性
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          console.log(`使用备用方法下载图片 ${i + 1}/${imageUrls.length}: ${fileName}`);
-        } catch (fallbackError) {
-          console.error(`备用下载方法也失败:`, fallbackError);
-        }
-      }
-    }
-    console.log(`下载完成，共 ${imageUrls.length} 张图片`);
-  }
-
-  extractFileName(url) {
-    // 从URL中提取文件名
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    const fileName = pathname.split('/').pop();
-    return fileName || `bilibili_dynamic_${Date.now()}.jpg`;
-  }
-
-  openImagesInNewTabs(imageUrls) {
-    imageUrls.forEach(url => {
-      window.open(url, '_blank');
-    });
-    console.log(`已在新标签页打开 ${imageUrls.length} 张图片`);
-  }
-
-  extractImageUrls() {
-    const imageUrls = new Set();
-    
-    // 方法1: 直接获取所有图片元素
-    const allImages = document.querySelectorAll('img');
-    allImages.forEach(img => {
-      const src = img.src || img.getAttribute('data-src');
-      if (src && this.isValidImageUrl(src)) {
-        imageUrls.add(this.cleanImageUrl(src));
-      }
-    });
-    
-    // 方法2: 从picture元素的source提取
-    const pictureElements = document.querySelectorAll('picture');
-    pictureElements.forEach(picture => {
-      const sources = picture.querySelectorAll('source');
-      sources.forEach(source => {
-        const srcset = source.srcset;
-        if (srcset) {
-          // 提取srcset中的所有URL
-          const urls = srcset.split(',').map(item => {
-            const url = item.trim().split(' ')[0];
-            return url;
-          }).filter(url => url && this.isValidImageUrl(url));
+      allImages.forEach(img => {
+        const src = img.src || img.getAttribute('data-src');
+        if (src && (src.includes('.jpg') || src.includes('.jpeg') || 
+                    src.includes('.png') || src.includes('.webp') || 
+                    src.includes('.gif')) && src.includes('new_dyn')) {
           
-          urls.forEach(url => {
-            imageUrls.add(this.cleanImageUrl(url));
-          });
+          let cleanedUrl = src;
+          if (cleanedUrl.startsWith('//')) {
+            cleanedUrl = 'https:' + cleanedUrl;
+          }
+          cleanedUrl = cleanedUrl.replace(/^http:/, 'https:');
+          cleanedUrl = cleanedUrl.replace(/@[^\s]*/, '').replace(/\?.*$/, '');
+          
+          imageUrls.add(cleanedUrl);
         }
       });
-    });
-    
-    // 方法3: 提取背景图片
-    const allElements = document.querySelectorAll('*');
-    allElements.forEach(el => {
-      const style = window.getComputedStyle(el);
-      const backgroundImage = style.backgroundImage;
-      if (backgroundImage && backgroundImage !== 'none') {
-        const urlMatch = backgroundImage.match(/url\(["']?(.*?)["']?\)/);
-        if (urlMatch && urlMatch[1]) {
-          const url = urlMatch[1];
-          if (this.isValidImageUrl(url)) {
-            imageUrls.add(this.cleanImageUrl(url));
-          }
-        }
-      }
-    });
-    
-    // 过滤掉非动态内容图片
-    const filteredUrls = Array.from(imageUrls).filter(url => {
-      // 只保留B站动态图片
-      return url.includes('/bfs/new_dyn/') || url.includes('new_dyn');
-    });
-    
-    console.log('提取到的图片URL:', filteredUrls);
-    return filteredUrls;
+      
+      return Array.from(imageUrls).filter(url => url.includes('/bfs/new_dyn/') || url.includes('new_dyn'));
+    };
+
+    // 执行操作
+    const results = {
+      like: settings.likeEnabled ? likeOpus() : { skipped: true, action: 'like' },
+      favorite: settings.favoriteEnabled ? favoriteOpus() : { skipped: true, action: 'favorite' },
+      imageUrls: (settings.imageEnabled && settings.imageAction !== 'none') ? extractImageUrls() : []
+    };
+
+    return results;
   }
 
-  isValidImageUrl(url) {
-    return url && 
-           (url.includes('.jpg') || url.includes('.jpeg') || 
-            url.includes('.png') || url.includes('.webp') || 
-            url.includes('.gif')) &&
-           url.includes('new_dyn');
-  }
 
-  cleanImageUrl(url) {
-    // 处理相对URL（以//开头），添加https:协议
-    let cleanedUrl = url;
-    if (cleanedUrl.startsWith('//')) {
-      cleanedUrl = 'https:' + cleanedUrl;
-    }
-    
-    // 统一协议，将HTTP转换为HTTPS
-    cleanedUrl = cleanedUrl.replace(/^http:/, 'https:');
-    
-    // 移除尺寸参数，获取原始图片
-    cleanedUrl = cleanedUrl.replace(/@[^\s]*/, '').replace(/\?.*$/, '');
-    
-    return cleanedUrl;
-  }
 }
 
 // 页面加载完成后初始化

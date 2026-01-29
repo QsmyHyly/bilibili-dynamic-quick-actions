@@ -46,13 +46,17 @@ class BilibiliOpusHelper {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       switch (request.action) {
         case "getSettings":
-          this.getSettings().then(settings => sendResponse(settings));
+          this.getSettings().then(settings => sendResponse({ settings }));
           return true;
         case "saveSettings":
           this.saveSettings(request.settings).then(() => sendResponse({ success: true }));
           return true;
         case "handleImages":
           this.handleImages(request.imageUrls, request.imageAction);
+          sendResponse({ success: true });
+          return true;
+        case "log":
+          console.log(`[Popup] ${request.message}`);
           sendResponse({ success: true });
           return true;
       }
@@ -82,16 +86,22 @@ class BilibiliOpusHelper {
     const defaultSettings = {
       likeEnabled: true,
       favoriteEnabled: true,
+      imageEnabled: true,
       imageAction: "download" // download, open-tab, disabled
     };
 
-    const result = await chrome.storage.sync.get(['settings']);
-    return { ...defaultSettings, ...result.settings };
+    const result = await chrome.storage.local.get(['settings']);
+    const settings = { ...defaultSettings, ...result.settings };
+    
+    console.log(`[Background] 从storage读取的设置:`, result.settings);
+    console.log(`[Background] 合并后的设置:`, settings);
+    
+    return settings;
   }
 
   // 保存设置
   async saveSettings(settings) {
-    await chrome.storage.sync.set({ settings });
+    await chrome.storage.local.set({ settings });
   }
 
   // 下载图片
@@ -131,6 +141,7 @@ class BilibiliOpusHelper {
         await this.downloadImages(imageUrls);
         break;
       case "open-tab":
+      case "open":
         this.openImagesInNewTab(imageUrls);
         break;
       default:
