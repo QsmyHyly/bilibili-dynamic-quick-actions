@@ -114,9 +114,9 @@ class SettingsManager {
         throw new Error('未找到活跃标签页');
       }
 
-      // 检查是否是B站动态页面
-      if (!tab.url.includes('bilibili.com/opus')) {
-        throw new Error('请在哔哩哔哩动态页面使用此功能');
+      // 检查是否是B站动态或文章页面
+      if (!tab.url.includes('bilibili.com/opus') && !tab.url.includes('bilibili.com/read')) {
+        throw new Error('请在哔哩哔哩动态页面或文章页面使用此功能');
       }
 
       // 准备执行设置
@@ -225,8 +225,8 @@ class SettingsManager {
         chrome.runtime.sendMessage({ action: 'log', message: `检查标签页 ${tab.id}: ${tab.url ? `\`${tab.url}\`` : 'undefined'}` });
       }
       
-      // 检查是否有动态页面
-      let opusTabs = tabs.filter(tab => tab.url && tab.url.includes('bilibili.com/opus'));
+      // 检查是否有动态或文章页面
+      let opusTabs = tabs.filter(tab => tab.url && (tab.url.includes('bilibili.com/opus') || tab.url.includes('bilibili.com/read')));
       
       if (opusTabs.length === 0) {
         chrome.runtime.sendMessage({ action: 'log', message: '未检测到任何动态页面' });

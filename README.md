@@ -28,7 +28,7 @@
 ## 使用方法
 
 ### 基本操作
-1. 打开任意哔哩哔哩动态页面（URL格式：`https://www.bilibili.com/opus/xxx`）
+1. 打开任意哔哩哔哩动态页面或文章页面（URL格式：`https://www.bilibili.com/opus/xxx` 或 `https://www.bilibili.com/read/xxx`）
 2. 等待页面完全加载（约2秒后自动添加快捷操作按钮）
 3. 在页面右侧侧边工具栏找到"快捷操作"按钮（星星图标）
 4. 点击"快捷操作"按钮执行预设功能

@@ -35,7 +35,7 @@ function executeQuickActions(settings) {
   const extractImageUrls = () => {
     const imageUrls = new Set();
       
-      const dynPicContainers = document.querySelectorAll('.opus-module-top, .opus-module-content, .opus-paragraph-children');
+      const dynPicContainers = document.querySelectorAll('.opus-module-top, .opus-module-content, .opus-paragraph-children, .article-content');
       
       dynPicContainers.forEach(dynPicContainer => {
         const allImages = dynPicContainer.querySelectorAll('img');

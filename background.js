@@ -19,7 +19,7 @@ class BilibiliOpusHelper {
       id: "bilibili-opus-actions",
       title: "哔哩哔哩动态快捷操作",
       contexts: ["page"],
-      documentUrlPatterns: ["https://www.bilibili.com/opus/*"]
+      documentUrlPatterns: ["https://www.bilibili.com/opus/*", "https://www.bilibili.com/read/*"]
     });
 
     // 创建子菜单项
@@ -36,7 +36,7 @@ class BilibiliOpusHelper {
         parentId: "bilibili-opus-actions",
         title: action.title,
         contexts: ["page"],
-        documentUrlPatterns: ["https://www.bilibili.com/opus/*"]
+        documentUrlPatterns: ["https://www.bilibili.com/opus/*", "https://www.bilibili.com/read/*"]
       });
     });
   }
@@ -71,7 +71,7 @@ class BilibiliOpusHelper {
 
     // 右键菜单点击事件
     chrome.contextMenus.onClicked.addListener((info, tab) => {
-      if (tab.url.includes("bilibili.com/opus")) {
+      if (tab.url.includes("bilibili.com/opus") || tab.url.includes("bilibili.com/read")) {
         this.handleContextMenuClick(info.menuItemId, tab);
       }
     });

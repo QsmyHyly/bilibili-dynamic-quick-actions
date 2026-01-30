@@ -20,7 +20,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.bilibili.com/opus/*"],
+      "matches": ["https://www.bilibili.com/opus/*", "https://www.bilibili.com/read/*"],
       "js": ["content.js"],
       "run_at": "document_end"
     }
