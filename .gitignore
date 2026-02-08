@@ -1,0 +1,28 @@
+# Logs
+*.log
+console-*.log
+
+# IDE and Editor files
+.trae/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node modules (if any)
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.min.js
+
+# Temporary files
+*.tmp
+*.temp
