@@ -5,29 +5,61 @@ function executeQuickActions(settings) {
   });
 
   const likeOpus = () => {
-    const likeButton = document.querySelector('.side-toolbar__action.like');
-    if (likeButton && !likeButton.classList.contains('is-active')) {
+    // 旧版选择器
+    let likeButton = document.querySelector('.side-toolbar__action.like');
+    let isActiveClass = 'is-active';
+    
+    // 新版选择器：查找包含 icon-like_p 的 toolbar-item
+    if (!likeButton) {
+      const toolbarItems = document.querySelectorAll('.toolbar-item');
+      for (const item of toolbarItems) {
+        const icon = item.querySelector('.icon-like_p');
+        if (icon) {
+          likeButton = item;
+          isActiveClass = 'toolbar-on';
+          break;
+        }
+      }
+    }
+    
+    if (likeButton && !likeButton.classList.contains(isActiveClass)) {
       likeButton.click();
       return { success: true, action: 'like' };
     }
     if (!likeButton) {
       return { success: false, action: 'like', reason: '未找到按钮' };
     }
-    if (likeButton.classList.contains('is-active')) {
+    if (likeButton.classList.contains(isActiveClass)) {
       return { success: false, action: 'like', reason: '已点赞' };
     }
   };
 
   const favoriteOpus = () => {
-    const favoriteButton = document.querySelector('.side-toolbar__action.favorite');
-    if (favoriteButton && !favoriteButton.classList.contains('is-active')) {
+    // 旧版选择器
+    let favoriteButton = document.querySelector('.side-toolbar__action.favorite');
+    let isActiveClass = 'is-active';
+    
+    // 新版选择器：查找包含 icon-collect_p 的 toolbar-item
+    if (!favoriteButton) {
+      const toolbarItems = document.querySelectorAll('.toolbar-item');
+      for (const item of toolbarItems) {
+        const icon = item.querySelector('.icon-collect_p');
+        if (icon) {
+          favoriteButton = item;
+          isActiveClass = 'toolbar-on';
+          break;
+        }
+      }
+    }
+    
+    if (favoriteButton && !favoriteButton.classList.contains(isActiveClass)) {
       favoriteButton.click();
       return { success: true, action: 'favorite' };
     }
     if (!favoriteButton) {
       return { success: false, action: 'favorite', reason: '未找到按钮' };
     }
-    if (favoriteButton.classList.contains('is-active')) {
+    if (favoriteButton.classList.contains(isActiveClass)) {
       return { success: false, action: 'favorite', reason: '已收藏' };
     }
   };
